@@ -102,13 +102,11 @@ function PackageDetailRoute() {
             <summary>Latest Release</summary>
             <div style={{ display: "grid", gap: 8 }}>
               <div>{pkg.latestVersion ? `Version ${pkg.latestVersion}` : "No latest tag"}</div>
-              <div>
-                <a
-                  href={getPackageDownloadPath(name, pkg.latestVersion)}
-                >
-                  Download zip
-                </a>
-              </div>
+              {pkg.latestVersion ? (
+                <div>
+                  <a href={getPackageDownloadPath(name, pkg.latestVersion)}>Download zip</a>
+                </div>
+              ) : null}
             </div>
           </details>
           {latestRelease ? (

@@ -173,45 +173,85 @@ function makeReleaseDoc(overrides: Partial<Record<string, unknown>> = {}) {
 
 function makeDigestCtx(options: {
   pages?: Array<{ page: Array<Record<string, unknown>>; isDone: boolean; continueCursor: string }>;
+  capabilityPages?: Array<{
+    page: Array<Record<string, unknown>>;
+    isDone: boolean;
+    continueCursor: string;
+  }>;
 }) {
-  const pageByCursor = new Map<
+  const pageByTable = new Map<
+    string,
+    Map<
     string | null,
     { page: Array<Record<string, unknown>>; isDone: boolean; continueCursor: string }
+    >
   >();
   const indexNames: string[] = [];
-  let cursor: string | null = null;
-  for (const page of options.pages ?? []) {
-    pageByCursor.set(cursor, page);
-    cursor = page.continueCursor || null;
-  }
-  const paginate = vi.fn(async (args: { cursor: string | null }) => {
-    return (
-      pageByCursor.get(args.cursor ?? null) ?? {
-        page: [],
-        isDone: true,
-        continueCursor: "",
-      }
-    );
-  });
-  const withIndex = vi.fn((indexName: string) => {
+  const tableNames: string[] = [];
+
+  const setPages = (
+    table: string,
+    pages: Array<{ page: Array<Record<string, unknown>>; isDone: boolean; continueCursor: string }>,
+  ) => {
+    const pageByCursor = new Map<
+      string | null,
+      { page: Array<Record<string, unknown>>; isDone: boolean; continueCursor: string }
+    >();
+    let cursor: string | null = null;
+    for (const page of pages) {
+      pageByCursor.set(cursor, page);
+      cursor = page.continueCursor || null;
+    }
+    pageByTable.set(table, pageByCursor);
+  };
+
+  setPages("packageSearchDigest", options.pages ?? []);
+  setPages("packageCapabilitySearchDigest", options.capabilityPages ?? []);
+
+  const paginate = vi.fn();
+  const paginateForTable = (table: string) =>
+    vi.fn(async (args: { cursor: string | null }) => {
+      paginate(args);
+      return (
+        pageByTable.get(table)?.get(args.cursor ?? null) ?? {
+          page: [],
+          isDone: true,
+          continueCursor: "",
+        }
+      );
+    });
+  const paginateByTable = new Map<string, ReturnType<typeof vi.fn>>();
+  const getPaginate = (table: string) => {
+    const existing = paginateByTable.get(table);
+    if (existing) return existing;
+    const next = paginateForTable(table);
+    paginateByTable.set(table, next);
+    return next;
+  };
+
+  const withIndex = vi.fn((table: string, indexName: string) => {
     indexNames.push(indexName);
     return {
       order: vi.fn(() => ({
-        paginate,
+        paginate: getPaginate(table),
       })),
     };
   });
 
   return {
     indexNames,
+    tableNames,
     paginate,
     ctx: {
       db: {
         query: vi.fn((table: string) => {
-          if (table !== "packageSearchDigest") {
+          if (table !== "packageSearchDigest" && table !== "packageCapabilitySearchDigest") {
             throw new Error(`Unexpected table ${table}`);
           }
-          return { withIndex };
+          tableNames.push(table);
+          return {
+            withIndex: (indexName: string) => withIndex(table, indexName),
+          };
         }),
       },
     },
@@ -522,22 +562,19 @@ describe("packages public queries", () => {
 
   it("filters private packages and capability flags in public search", async () => {
     const { ctx } = makeDigestCtx({
-      pages: [
+      capabilityPages: [
         {
           page: [
             makeDigest("secret-tools", {
               channel: "private",
               executesCode: true,
               capabilityTags: ["tools"],
-            }),
-            makeDigest("bundle-demo", {
-              family: "bundle-plugin",
-              executesCode: false,
-              capabilityTags: [],
+              capabilityTag: "tools",
             }),
             makeDigest("tools-demo", {
               executesCode: true,
               capabilityTags: ["tools"],
+              capabilityTag: "tools",
             }),
           ],
           isDone: true,
@@ -554,6 +591,56 @@ describe("packages public queries", () => {
     });
 
     expect(result.map((entry) => entry.package.name)).toEqual(["tools-demo"]);
+  });
+
+  it("uses the executesCode index for filtered public listings", async () => {
+    const { ctx, indexNames, tableNames } = makeDigestCtx({
+      pages: [
+        {
+          page: [makeDigest("exec-demo", { executesCode: true })],
+          isDone: true,
+          continueCursor: "",
+        },
+      ],
+    });
+
+    const result = await listPublicPageHandler(ctx, {
+      executesCode: true,
+      paginationOpts: { cursor: null, numItems: 10 },
+    });
+
+    expect(result.page.map((entry) => entry.name)).toEqual(["exec-demo"]);
+    expect(tableNames).toEqual(["packageSearchDigest"]);
+    expect(indexNames).toEqual(["by_active_executes_updated"]);
+  });
+
+  it("uses capability digests for capability-tagged package search", async () => {
+    const { ctx, indexNames, tableNames } = makeDigestCtx({
+      capabilityPages: [
+        {
+          page: [
+            makeDigest("tools-demo", {
+              capabilityTag: "tools",
+              capabilityTags: ["tools"],
+              executesCode: true,
+            }),
+          ],
+          isDone: true,
+          continueCursor: "",
+        },
+      ],
+    });
+
+    const result = await searchPublicHandler(ctx, {
+      query: "tools",
+      capabilityTag: "tools",
+      executesCode: true,
+      limit: 10,
+    });
+
+    expect(result.map((entry) => entry.package.name)).toEqual(["tools-demo"]);
+    expect(tableNames).toEqual(["packageCapabilitySearchDigest"]);
+    expect(indexNames).toEqual(["by_active_tag_executes_updated"]);
   });
 
   it("keeps searching beyond the first digest page", async () => {

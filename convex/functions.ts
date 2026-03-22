@@ -13,6 +13,7 @@ import {
 } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import {
+  deletePackageSearchDigests,
   extractPackageDigestFields,
   upsertPackageSearchDigest,
 } from "./lib/packageSearchDigest";
@@ -227,11 +228,7 @@ triggers.register("skills", async (ctx, change) => {
 
 triggers.register("packages", async (ctx, change) => {
   if (change.operation === "delete") {
-    const existing = await ctx.db
-      .query("packageSearchDigest")
-      .withIndex("by_package", (q) => q.eq("packageId", change.id))
-      .unique();
-    if (existing) await ctx.db.delete(existing._id);
+    await deletePackageSearchDigests(ctx, change.id);
     return;
   }
 

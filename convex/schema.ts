@@ -654,15 +654,169 @@ const packageSearchDigest = defineTable({
     "isOfficial",
     "updatedAt",
   ])
+  .index("by_active_executes_updated", ["softDeletedAt", "executesCode", "updatedAt"])
   .index("by_active_family_updated", ["softDeletedAt", "family", "updatedAt"])
   .index("by_active_family_channel_updated", ["softDeletedAt", "family", "channel", "updatedAt"])
+  .index("by_active_family_channel_executes_updated", [
+    "softDeletedAt",
+    "family",
+    "channel",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_family_executes_updated", [
+    "softDeletedAt",
+    "family",
+    "executesCode",
+    "updatedAt",
+  ])
   .index("by_active_family_official_updated", [
     "softDeletedAt",
     "family",
     "isOfficial",
     "updatedAt",
   ])
+  .index("by_active_family_official_executes_updated", [
+    "softDeletedAt",
+    "family",
+    "isOfficial",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_channel_executes_updated", [
+    "softDeletedAt",
+    "channel",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_channel_official_executes_updated", [
+    "softDeletedAt",
+    "channel",
+    "isOfficial",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_official_executes_updated", [
+    "softDeletedAt",
+    "isOfficial",
+    "executesCode",
+    "updatedAt",
+  ])
   .index("by_active_name", ["softDeletedAt", "displayName"]);
+
+const packageCapabilitySearchDigest = defineTable({
+  packageId: v.id("packages"),
+  name: v.string(),
+  normalizedName: v.string(),
+  displayName: v.string(),
+  family: packageFamilyValidator,
+  channel: packageChannelValidator,
+  isOfficial: v.boolean(),
+  ownerUserId: v.id("users"),
+  ownerHandle: v.optional(v.string()),
+  summary: v.optional(v.string()),
+  latestVersion: v.optional(v.string()),
+  runtimeId: v.optional(v.string()),
+  capabilityTags: v.optional(v.array(v.string())),
+  capabilityTag: v.string(),
+  executesCode: v.optional(v.boolean()),
+  verificationTier: v.optional(packageVerificationTierValidator),
+  softDeletedAt: v.optional(v.number()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index("by_package", ["packageId", "capabilityTag"])
+  .index("by_active_tag_updated", ["softDeletedAt", "capabilityTag", "updatedAt"])
+  .index("by_active_tag_executes_updated", [
+    "softDeletedAt",
+    "capabilityTag",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_family_tag_updated", [
+    "softDeletedAt",
+    "family",
+    "capabilityTag",
+    "updatedAt",
+  ])
+  .index("by_active_family_tag_executes_updated", [
+    "softDeletedAt",
+    "family",
+    "capabilityTag",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_channel_tag_updated", [
+    "softDeletedAt",
+    "channel",
+    "capabilityTag",
+    "updatedAt",
+  ])
+  .index("by_active_channel_tag_executes_updated", [
+    "softDeletedAt",
+    "channel",
+    "capabilityTag",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_official_tag_updated", [
+    "softDeletedAt",
+    "isOfficial",
+    "capabilityTag",
+    "updatedAt",
+  ])
+  .index("by_active_official_tag_executes_updated", [
+    "softDeletedAt",
+    "isOfficial",
+    "capabilityTag",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_family_channel_tag_updated", [
+    "softDeletedAt",
+    "family",
+    "channel",
+    "capabilityTag",
+    "updatedAt",
+  ])
+  .index("by_active_family_channel_tag_executes_updated", [
+    "softDeletedAt",
+    "family",
+    "channel",
+    "capabilityTag",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_family_official_tag_updated", [
+    "softDeletedAt",
+    "family",
+    "isOfficial",
+    "capabilityTag",
+    "updatedAt",
+  ])
+  .index("by_active_family_official_tag_executes_updated", [
+    "softDeletedAt",
+    "family",
+    "isOfficial",
+    "capabilityTag",
+    "executesCode",
+    "updatedAt",
+  ])
+  .index("by_active_channel_official_tag_updated", [
+    "softDeletedAt",
+    "channel",
+    "isOfficial",
+    "capabilityTag",
+    "updatedAt",
+  ])
+  .index("by_active_channel_official_tag_executes_updated", [
+    "softDeletedAt",
+    "channel",
+    "isOfficial",
+    "capabilityTag",
+    "executesCode",
+    "updatedAt",
+  ]);
 
 const skillDailyStats = defineTable({
   skillId: v.id("skills"),
@@ -977,6 +1131,7 @@ export default defineSchema({
   packages,
   packageReleases,
   packageSearchDigest,
+  packageCapabilitySearchDigest,
   souls,
   skillVersions,
   soulVersions,

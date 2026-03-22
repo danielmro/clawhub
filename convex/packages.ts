@@ -62,6 +62,28 @@ type PublicPackageListItem = {
   executesCode: boolean;
   verificationTier: Doc<"packageSearchDigest">["verificationTier"] | null;
 };
+type PackageDigestLike = Pick<
+  Doc<"packageSearchDigest">,
+  | "packageId"
+  | "name"
+  | "normalizedName"
+  | "displayName"
+  | "family"
+  | "runtimeId"
+  | "channel"
+  | "isOfficial"
+  | "summary"
+  | "ownerHandle"
+  | "createdAt"
+  | "updatedAt"
+  | "latestVersion"
+  | "capabilityTags"
+  | "executesCode"
+  | "verificationTier"
+  | "softDeletedAt"
+> & {
+  capabilityTag?: string;
+};
 type PublicPageCursorState = {
   cursor: string | null;
   offset: number;
@@ -145,7 +167,7 @@ function toPublicPackage(
 }
 
 function digestMatchesFilters(
-  digest: Doc<"packageSearchDigest">,
+  digest: PackageDigestLike,
   args: {
     executesCode?: boolean;
     capabilityTag?: string;
@@ -158,12 +180,13 @@ function digestMatchesFilters(
     return false;
   }
   if (args.capabilityTag) {
+    if (digest.capabilityTag) return digest.capabilityTag === args.capabilityTag;
     return (digest.capabilityTags ?? []).includes(args.capabilityTag);
   }
   return true;
 }
 
-function toPublicPackageListItem(digest: Doc<"packageSearchDigest">): PublicPackageListItem {
+function toPublicPackageListItem(digest: PackageDigestLike): PublicPackageListItem {
   return {
     name: digest.name,
     displayName: digest.displayName,
@@ -206,7 +229,7 @@ function decodePublicPageCursor(raw: string | null | undefined): PublicPageCurso
   }
 }
 
-function packageSearchScore(digest: Doc<"packageSearchDigest">, queryText: string) {
+function packageSearchScore(digest: PackageDigestLike, queryText: string) {
   const needle = queryText.toLowerCase();
   const normalized = digest.normalizedName.toLowerCase();
   const display = digest.displayName.toLowerCase();
@@ -234,11 +257,58 @@ function buildPackageDigestQuery(
     family?: PackageFamily;
     channel?: PackageChannel;
     isOfficial?: boolean;
+    executesCode?: boolean;
   },
 ) {
   const family = args.family;
   const channel = args.channel;
   const isOfficial = args.isOfficial;
+  const executesCode = args.executesCode;
+
+  if (family && channel && typeof executesCode === "boolean") {
+    return ctx.db.query("packageSearchDigest").withIndex("by_active_family_channel_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("family", family)
+        .eq("channel", channel)
+        .eq("executesCode", executesCode),
+    );
+  }
+  if (family && typeof isOfficial === "boolean" && typeof executesCode === "boolean") {
+    return ctx.db.query("packageSearchDigest").withIndex("by_active_family_official_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("family", family)
+        .eq("isOfficial", isOfficial)
+        .eq("executesCode", executesCode),
+    );
+  }
+  if (channel && typeof isOfficial === "boolean" && typeof executesCode === "boolean") {
+    return ctx.db.query("packageSearchDigest").withIndex("by_active_channel_official_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("channel", channel)
+        .eq("isOfficial", isOfficial)
+        .eq("executesCode", executesCode),
+    );
+  }
+  if (family && typeof executesCode === "boolean") {
+    return ctx.db.query("packageSearchDigest").withIndex("by_active_family_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined).eq("family", family).eq("executesCode", executesCode),
+    );
+  }
+  if (channel && typeof executesCode === "boolean") {
+    return ctx.db.query("packageSearchDigest").withIndex("by_active_channel_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined).eq("channel", channel).eq("executesCode", executesCode),
+    );
+  }
+  if (typeof isOfficial === "boolean" && typeof executesCode === "boolean") {
+    return ctx.db.query("packageSearchDigest").withIndex("by_active_official_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined).eq("isOfficial", isOfficial).eq("executesCode", executesCode),
+    );
+  }
+  if (typeof executesCode === "boolean") {
+    return ctx.db.query("packageSearchDigest").withIndex("by_active_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined).eq("executesCode", executesCode),
+    );
+  }
 
   if (family && channel) {
     return ctx.db.query("packageSearchDigest").withIndex("by_active_family_channel_updated", (q) =>
@@ -272,6 +342,131 @@ function buildPackageDigestQuery(
   }
   return ctx.db.query("packageSearchDigest").withIndex("by_active_updated", (q) =>
     q.eq("softDeletedAt", undefined),
+  );
+}
+
+function buildPackageCapabilityDigestQuery(
+  ctx: DbReaderCtx,
+  args: {
+    capabilityTag: string;
+    family?: PackageFamily;
+    channel?: PackageChannel;
+    isOfficial?: boolean;
+    executesCode?: boolean;
+  },
+) {
+  const family = args.family;
+  const channel = args.channel;
+  const isOfficial = args.isOfficial;
+  const executesCode = args.executesCode;
+
+  if (family && channel && typeof executesCode === "boolean") {
+    return ctx.db
+      .query("packageCapabilitySearchDigest")
+      .withIndex("by_active_family_channel_tag_executes_updated", (q) =>
+        q.eq("softDeletedAt", undefined)
+          .eq("family", family)
+          .eq("channel", channel)
+          .eq("capabilityTag", args.capabilityTag)
+          .eq("executesCode", executesCode),
+      );
+  }
+  if (family && typeof isOfficial === "boolean" && typeof executesCode === "boolean") {
+    return ctx.db
+      .query("packageCapabilitySearchDigest")
+      .withIndex("by_active_family_official_tag_executes_updated", (q) =>
+        q.eq("softDeletedAt", undefined)
+          .eq("family", family)
+          .eq("isOfficial", isOfficial)
+          .eq("capabilityTag", args.capabilityTag)
+          .eq("executesCode", executesCode),
+      );
+  }
+  if (channel && typeof isOfficial === "boolean" && typeof executesCode === "boolean") {
+    return ctx.db
+      .query("packageCapabilitySearchDigest")
+      .withIndex("by_active_channel_official_tag_executes_updated", (q) =>
+        q.eq("softDeletedAt", undefined)
+          .eq("channel", channel)
+          .eq("isOfficial", isOfficial)
+          .eq("capabilityTag", args.capabilityTag)
+          .eq("executesCode", executesCode),
+      );
+  }
+  if (family && channel) {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_family_channel_tag_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("family", family)
+        .eq("channel", channel)
+        .eq("capabilityTag", args.capabilityTag),
+    );
+  }
+  if (family && typeof isOfficial === "boolean") {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_family_official_tag_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("family", family)
+        .eq("isOfficial", isOfficial)
+        .eq("capabilityTag", args.capabilityTag),
+    );
+  }
+  if (channel && typeof isOfficial === "boolean") {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_channel_official_tag_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("channel", channel)
+        .eq("isOfficial", isOfficial)
+        .eq("capabilityTag", args.capabilityTag),
+    );
+  }
+  if (family && typeof executesCode === "boolean") {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_family_tag_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("family", family)
+        .eq("capabilityTag", args.capabilityTag)
+        .eq("executesCode", executesCode),
+    );
+  }
+  if (channel && typeof executesCode === "boolean") {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_channel_tag_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("channel", channel)
+        .eq("capabilityTag", args.capabilityTag)
+        .eq("executesCode", executesCode),
+    );
+  }
+  if (typeof isOfficial === "boolean" && typeof executesCode === "boolean") {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_official_tag_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("isOfficial", isOfficial)
+        .eq("capabilityTag", args.capabilityTag)
+        .eq("executesCode", executesCode),
+    );
+  }
+  if (family) {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_family_tag_updated", (q) =>
+      q.eq("softDeletedAt", undefined).eq("family", family).eq("capabilityTag", args.capabilityTag),
+    );
+  }
+  if (channel) {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_channel_tag_updated", (q) =>
+      q.eq("softDeletedAt", undefined).eq("channel", channel).eq("capabilityTag", args.capabilityTag),
+    );
+  }
+  if (typeof isOfficial === "boolean") {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_official_tag_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("isOfficial", isOfficial)
+        .eq("capabilityTag", args.capabilityTag),
+    );
+  }
+  if (typeof executesCode === "boolean") {
+    return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_tag_executes_updated", (q) =>
+      q.eq("softDeletedAt", undefined)
+        .eq("capabilityTag", args.capabilityTag)
+        .eq("executesCode", executesCode),
+    );
+  }
+  return ctx.db.query("packageCapabilitySearchDigest").withIndex("by_active_tag_updated", (q) =>
+    q.eq("softDeletedAt", undefined).eq("capabilityTag", args.capabilityTag),
   );
 }
 
@@ -393,10 +588,22 @@ export const listPublicPage = query({
       if (effectivePageSize <= 0) break;
       remainingScanBudget -= effectivePageSize;
       const pageCursor = cursor;
-      const builder = buildPackageDigestQuery(ctx, { family, channel, isOfficial });
-      const page = await builder.order("desc").paginate({ cursor: pageCursor, numItems: effectivePageSize });
+      const builder = args.capabilityTag
+        ? buildPackageCapabilityDigestQuery(ctx, {
+            capabilityTag: args.capabilityTag,
+            family,
+            channel,
+            isOfficial,
+            executesCode: args.executesCode,
+          })
+        : buildPackageDigestQuery(ctx, { family, channel, isOfficial, executesCode: args.executesCode });
+      const page: {
+        page: PackageDigestLike[];
+        isDone: boolean;
+        continueCursor: string;
+      } = await builder.order("desc").paginate({ cursor: pageCursor, numItems: effectivePageSize });
       for (let index = offset; index < page.page.length; index += 1) {
-        const digest = page.page[index];
+        const digest = page.page[index] as PackageDigestLike;
         if (digest.channel === "private") continue;
         if (channel && digest.channel !== channel) continue;
         if (typeof isOfficial === "boolean" && digest.isOfficial !== isOfficial) {
@@ -455,11 +662,20 @@ export const searchPublic = query({
     if (!queryText) return [];
     if (args.channel === "private") return [];
     const targetCount = Math.max(1, Math.min(args.limit ?? 20, 100));
-    const builder = buildPackageDigestQuery(ctx, {
-      family: args.family,
-      channel: args.channel,
-      isOfficial: args.isOfficial,
-    });
+    const builder = args.capabilityTag
+      ? buildPackageCapabilityDigestQuery(ctx, {
+          capabilityTag: args.capabilityTag,
+          family: args.family,
+          channel: args.channel,
+          isOfficial: args.isOfficial,
+          executesCode: args.executesCode,
+        })
+      : buildPackageDigestQuery(ctx, {
+          family: args.family,
+          channel: args.channel,
+          isOfficial: args.isOfficial,
+          executesCode: args.executesCode,
+        });
     const matches: Array<{ score: number; package: PublicPackageListItem }> = [];
     const seen = new Set<string>();
     const pageSize = Math.min(MAX_SEARCH_PAGE_SIZE, Math.max(targetCount * 5, 50));
@@ -473,7 +689,11 @@ export const searchPublic = query({
       const effectivePageSize = Math.min(pageSize, remainingScanBudget);
       if (effectivePageSize <= 0) break;
       remainingScanBudget -= effectivePageSize;
-      const page = await builder.order("desc").paginate({ cursor, numItems: effectivePageSize });
+      const page: {
+        page: PackageDigestLike[];
+        isDone: boolean;
+        continueCursor: string;
+      } = await builder.order("desc").paginate({ cursor, numItems: effectivePageSize });
       for (const digest of page.page) {
         if (digest.channel === "private") continue;
         if (args.channel && digest.channel !== args.channel) continue;
@@ -482,8 +702,8 @@ export const searchPublic = query({
         }
         if (!digestMatchesFilters(digest, args)) continue;
         const score = packageSearchScore(digest, queryText);
-        if (score <= 0 || seen.has(digest.name)) continue;
-        seen.add(digest.name);
+        if (score <= 0 || seen.has(digest.packageId)) continue;
+        seen.add(digest.packageId);
         matches.push({
           score,
           package: toPublicPackageListItem(digest),

@@ -174,9 +174,11 @@ export default function Header() {
                     </Link>
                   )}
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/packages">Packages</Link>
-                </DropdownMenuItem>
+                {isSoulMode ? null : (
+                  <DropdownMenuItem asChild>
+                    <Link to="/packages">Packages</Link>
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem asChild>
                   <Link to="/upload" search={{ updateSlug: undefined }}>
                     Upload

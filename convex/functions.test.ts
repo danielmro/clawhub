@@ -51,6 +51,7 @@ describe("package digest sync", () => {
         query: vi.fn(() => ({
           withIndex: vi.fn(() => ({
             unique: vi.fn().mockResolvedValue(null),
+            collect: vi.fn().mockResolvedValue([]),
           })),
         })),
         patch: vi.fn(),
@@ -162,6 +163,15 @@ describe("package digest sync", () => {
             return {
               withIndex: vi.fn(() => ({
                 unique: vi.fn().mockResolvedValue(null),
+                collect: vi.fn().mockResolvedValue([]),
+              })),
+            };
+          }
+          if (table === "packageCapabilitySearchDigest") {
+            return {
+              withIndex: vi.fn(() => ({
+                unique: vi.fn().mockResolvedValue(null),
+                collect: vi.fn().mockResolvedValue([]),
               })),
             };
           }
@@ -256,6 +266,15 @@ describe("package digest sync", () => {
             return {
               withIndex: vi.fn(() => ({
                 unique: vi.fn().mockResolvedValue(null),
+                collect: vi.fn().mockResolvedValue([]),
+              })),
+            };
+          }
+          if (table === "packageCapabilitySearchDigest") {
+            return {
+              withIndex: vi.fn(() => ({
+                unique: vi.fn().mockResolvedValue(null),
+                collect: vi.fn().mockResolvedValue([]),
               })),
             };
           }
