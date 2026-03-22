@@ -11,6 +11,7 @@ vi.mock("@tanstack/react-start/server", () => ({
 import {
   fetchPackageDetail,
   fetchPackageReadme,
+  fetchPackageVersion,
   fetchPackages,
   getPackageDownloadPath,
 } from "./packageApi";
@@ -95,6 +96,31 @@ describe("fetchPackages", () => {
     expect(url.searchParams.get("limit")).toBe("12");
   });
 
+  it("preserves non-search listing filters on package listings", async () => {
+    vi.stubEnv("VITE_CONVEX_URL", "https://registry.example");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ items: [], nextCursor: null }), { status: 200 }));
+
+    await fetchPackages({
+      isOfficial: false,
+      executesCode: false,
+      capabilityTag: "storage",
+      limit: 7,
+    });
+
+    const requestUrl = fetchMock.mock.calls[0]?.[0];
+    if (typeof requestUrl !== "string") {
+      throw new Error("Expected fetch to be called with a string URL");
+    }
+    const url = new URL(requestUrl);
+    expect(url.pathname).toBe("/api/v1/packages");
+    expect(url.searchParams.get("isOfficial")).toBe("false");
+    expect(url.searchParams.get("executesCode")).toBe("false");
+    expect(url.searchParams.get("capabilityTag")).toBe("storage");
+    expect(url.searchParams.get("limit")).toBe("7");
+  });
+
   it("falls back across supported README variants", async () => {
     vi.stubEnv("VITE_CONVEX_URL", "https://registry.example");
     const fetchMock = vi
@@ -162,6 +188,60 @@ describe("fetchPackages", () => {
     await fetchPackageDetail("private-plugin");
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://app.example/api/v1/packages/private-plugin");
+  });
+
+  it("falls back to the env base URL when SSR request context is unavailable", async () => {
+    vi.stubEnv("VITE_CONVEX_URL", "https://registry.example");
+    getRequestUrlMock.mockImplementation(() => {
+      throw new Error("no request context");
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ items: [], nextCursor: null }), { status: 200 }));
+
+    await fetchPackages({
+      family: "bundle-plugin",
+      limit: 12,
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://registry.example/api/v1/bundle-plugins?limit=12");
+  });
+
+  it("throws package detail errors for non-404 failures", async () => {
+    vi.stubEnv("VITE_CONVEX_URL", "https://registry.example");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("boom", { status: 500 }));
+
+    await expect(fetchPackageDetail("broken-plugin")).rejects.toThrow("boom");
+  });
+
+  it("fetches package version details from the encoded version route", async () => {
+    vi.stubEnv("VITE_CONVEX_URL", "https://registry.example");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          package: { name: "demo-plugin", displayName: "Demo Plugin", family: "code-plugin" },
+          version: { version: "1.2.3", createdAt: 1, changelog: "demo", files: [] },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await fetchPackageVersion("demo-plugin", "1.2.3+build/meta");
+
+    expect(result.version?.version).toBe("1.2.3");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://registry.example/api/v1/packages/demo-plugin/versions/1.2.3%2Bbuild%2Fmeta",
+    );
+  });
+
+  it("returns null when no supported README variant exists", async () => {
+    vi.stubEnv("VITE_CONVEX_URL", "https://registry.example");
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("missing", { status: 404 }));
+
+    await expect(fetchPackageReadme("demo-plugin", "1.0.0")).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("builds same-origin package download paths", () => {
