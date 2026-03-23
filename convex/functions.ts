@@ -32,7 +32,11 @@ function isMissingTableError(error: unknown, table: string) {
 }
 
 type PackageDigestSyncCtx = Pick<MutationCtx, "db">;
+<<<<<<< HEAD
 type OwnerPublisherDigestScheduleCtx = Pick<MutationCtx, "scheduler">;
+=======
+type OwnerPublisherDigestScheduleCtx = Pick<Partial<MutationCtx>, "scheduler">;
+>>>>>>> cace01b (fix(publishers): skip digest scheduling without scheduler)
 type LatestPackageRelease = Pick<
   Doc<"packageReleases">,
   | "_id"
@@ -240,7 +244,7 @@ export async function scheduleOwnerPublisherDigestSync(
   ctx: OwnerPublisherDigestScheduleCtx,
   ownerPublisherId: Id<"publishers"> | null | undefined,
 ) {
-  if (!ownerPublisherId) return;
+  if (!ownerPublisherId || !ctx.scheduler) return;
   await ctx.scheduler.runAfter(
     0,
     internal.functions.syncPackageSearchDigestsForOwnerPublisherIdInternal,
