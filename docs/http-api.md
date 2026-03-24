@@ -21,9 +21,9 @@ Enforcement model:
 - Authenticated requests (valid Bearer token): enforced per user bucket.
 - If token is missing/invalid, behavior falls back to IP enforcement.
 
-- Read: 120/min per IP, 600/min per key
-- Write: 30/min per IP, 120/min per key
-- Download: 20/min per IP, 120/min per key (`/api/v1/download`)
+- Read: 180/min per IP, 900/min per key
+- Write: 45/min per IP, 180/min per key
+- Download: 30/min per IP, 180/min per key (`/api/v1/download`)
 
 Headers:
 
