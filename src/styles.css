@@ -3716,7 +3716,7 @@ html.theme-transition::view-transition-new(theme) {
 .dashboard-list-header,
 .dashboard-list-row {
   display: grid;
-  grid-template-columns: minmax(min(240px, 100%), 1.15fr) minmax(0, 1fr) minmax(min(240px, 100%), 0.95fr) auto;
+  grid-template-columns: minmax(240px, 1.15fr) minmax(0, 1fr) minmax(240px, 0.95fr) auto;
   gap: 16px;
   align-items: start;
   padding: 14px 18px;
@@ -3876,6 +3876,17 @@ html.theme-transition::view-transition-new(theme) {
 .btn-ghost:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   border-color: var(--border-ui-hover);
+}
+
+@media (max-width: 768px) {
+  .dashboard-list-header,
+  .dashboard-list-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .dashboard-list-header span:nth-child(2) {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
